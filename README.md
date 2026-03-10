@@ -17,6 +17,12 @@ It is a wrapper for the native iOS and Android SDKs to allow React Native apps t
 Currently, the SDK is only available locally. You can install it using the following command from the project root folder:
 
 ```sh
+npm install 
+```
+
+When we publish the package to npm, we will use the following command (not available yet):
+
+```sh
 npm install open-wearables
 ```
 
