@@ -20,7 +20,7 @@ Currently, the SDK is only available locally. You can install it using the follo
 npm install open-wearables
 ```
 
-Then, depending if are using expo or react native cli, follow the instructions below:
+Then, depending if are using Expo or React Native CLI, follow the instructions below:
 
 ### Expo
 
@@ -41,7 +41,23 @@ npx expo prebuild
 ```
 
 
-#### Config Plugin (optional)
+### React Native CLI
+
+For bare React Native projects, you must ensure that you have **[installed and configured the expo package](https://docs.expo.dev/bare/installing-expo-modules/)** before continuing.
+
+After installing the package, install the iOS CocoaPods dependencies:
+
+```sh
+npx pod-install
+```
+
+or manually:
+
+```sh
+cd ios && pod install
+```
+
+### Config Plugin (optional)
 
 You can customize the permission messages displayed to users by configuring the plugin in your app.json or app.config.js.
 
@@ -67,21 +83,6 @@ You can customize the permission messages displayed to users by configuring the 
 | healthUpdateUsage | Sets the NSHealthUpdateUsageDescription value in Info.plist. |
 
 
-### React Native CLI
-
-For bare React Native projects, you must ensure that you have **[installed and configured the expo package](https://docs.expo.dev/bare/installing-expo-modules/)** before continuing.
-
-After installing the package, install the iOS CocoaPods dependencies:
-
-```sh
-npx pod-install
-```
-
-or manually:
-
-```sh
-cd ios && pod install
-```
 
 ## Example app
 
