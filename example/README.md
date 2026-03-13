@@ -78,15 +78,17 @@ Steps to test the Android SDK using `mavenLocal`:
 
 ```sh
 git clone https://github.com/the-momentum/open_wearables_android_sdk
+cd open_wearables_android_sdk
 ```
 
 2. From the root of that repository, publish the SDK to Maven Local:
 
 ```sh
+git checkout v0.5.0
 ./gradlew publishToMavenLocal
 ```
 
-3. In this example project, add `mavenLocal()` under `allRepositories` in:
+3. In this example project, add `mavenLocal()` under `allRepositories` (it must be first!) in:
 
 ```
 example/android/build.gradle
