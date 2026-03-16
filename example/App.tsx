@@ -50,8 +50,6 @@ export default function App() {
         OpenWearablesHealthSDK.configure(stored.host);
       }
 
-      OpenWearablesHealthSDK.restoreSession();
-
       const valid = Boolean(OpenWearablesHealthSDK.isSessionValid());
       setIsConnected(valid);
       if (valid) {
@@ -82,7 +80,8 @@ export default function App() {
     setCredentials(stored ?? {});
     setIsConnected(true);
     showToast("Connected successfully");
-    if (stored?.provider) {
+    // iOS only has 1 provider (HealthKit)
+    if (Platform.OS === "ios" || stored?.provider) {
       autoRequestAuthorization();
     }
   };
