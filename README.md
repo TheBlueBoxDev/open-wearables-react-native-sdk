@@ -2,22 +2,22 @@
 
 The official React Native SDK for the [Open Wearables](https://github.com/the-momentum/open-wearables) project.
 
-The SDK is built with the [Expo Module API](https://docs.expo.dev/modules/module-api/) enabling install the app in Expo Project as well as in React Native CLI projects. 
+The SDK is built with the [Expo Module API](https://docs.expo.dev/modules/module-api/) enabling install the app in Expo Project as well as in React Native CLI projects.
 It is a wrapper for the native iOS and Android SDKs to allow React Native apps to collect and sync health data.
 
 ## Platform support
 
-| Platform | Status                                                                  |
-| -------- | ----------------------------------------------------------------------- |
-| iOS      | Implemented (via `OpenWearablesHealthSDK` CocoaPod, requires iOS 15.1+) |
-| Android  | In progress — coming soon                                                |
+| Platform | Status                                                                        |
+| -------- | ----------------------------------------------------------------------------- |
+| iOS      | Implemented (via `OpenWearablesHealthSDK` CocoaPod, requires iOS 15.1+)       |
+| Android  | Implemented (via Maven Local dependency `com.openwearables.health:sdk:0.5.0`) |
 
 ## Installation
 
 Currently, the SDK is only available locally. You can install it using the following command from the project root folder:
 
 ```sh
-npm install 
+npm install
 ```
 
 When we publish the package to npm, we will use the following command (not available yet):
@@ -46,7 +46,6 @@ You can also generate them manually using:
 npx expo prebuild
 ```
 
-
 ### React Native CLI
 
 For bare React Native projects, you must ensure that you have **[installed and configured the expo package](https://docs.expo.dev/bare/installing-expo-modules/)** before continuing.
@@ -62,6 +61,18 @@ or manually:
 ```sh
 cd ios && pod install
 ```
+
+### Android (temporary setup)
+
+The Android implementation currently relies on a local Maven dependency:
+
+```
+implementation("com.openwearables.health:sdk:0.5.0")
+```
+
+To test the Android integration using `mavenLocal`, please refer to the setup instructions in the example app:
+
+👉 **[example/README.md](./example/README.md)**
 
 ## Config Plugin (optional)
 
@@ -88,7 +99,6 @@ You can customize the permission messages displayed to users by configuring the 
 | healthShareUsage  | Sets the NSHealthShareUsageDescription value in Info.plist.  |
 | healthUpdateUsage | Sets the NSHealthUpdateUsageDescription value in Info.plist. |
 
-
 ## Example app
 
 A minimal Expo application demonstrating how to integrate the SDK.
@@ -99,25 +109,29 @@ See the example project:
 ## Usage
 
 ```ts
-import OpenWearables from "open-wearables";
+import OpenWearablesHealthSDK from "open-wearables";
 
 // Configure the SDK with your backend host
-OpenWearables.configure("https://your-api-host.com");
+OpenWearablesHealthSDK.configure("https://your-api-host.com");
 
 // Sign in (token-based)
-OpenWearables.signIn(userId, accessToken, refreshToken, null);
+OpenWearablesHealthSDK.signIn(userId, accessToken, refreshToken, null);
 
 // Or sign in (API key)
-OpenWearables.signIn(userId, null, null, apiKey);
+OpenWearablesHealthSDK.signIn(userId, null, null, apiKey);
 
 // Request HealthKit authorization
-await OpenWearables.requestAuthorization(["steps", "heartRate", "sleep"]);
+await OpenWearablesHealthSDK.requestAuthorization([
+  "steps",
+  "heartRate",
+  "sleep",
+]);
 
 // Start background sync
-await OpenWearables.startBackgroundSync();
+await OpenWearablesHealthSDK.startBackgroundSync();
 
 // Sync immediately
-await OpenWearables.syncNow();
+await OpenWearablesHealthSDK.syncNow();
 ```
 
 ## API
@@ -205,11 +219,14 @@ Returns the credentials currently stored by the SDK.
 Subscribe to native SDK events using the standard Expo module event emitter:
 
 ```ts
-const subscription = OpenWearables.addListener("onLog", ({ message }) => {
-  console.log("SDK log:", message);
-});
+const subscription = OpenWearablesHealthSDK.addListener(
+  "onLog",
+  ({ message }) => {
+    console.log("SDK log:", message);
+  }
+);
 
-const authSub = OpenWearables.addListener(
+const authSub = OpenWearablesHealthSDK.addListener(
   "onAuthError",
   ({ statusCode, message }) => {
     console.error(`Auth error ${statusCode}:`, message);

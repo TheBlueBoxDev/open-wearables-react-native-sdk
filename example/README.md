@@ -64,11 +64,48 @@ npx expo run:ios
 
 The app will launch in the iOS simulator or on a connected device.
 
-### Android
+### Android (testing with Maven Local)
 
-Android support is not implemented yet in this example application.
+Prerequisite: the Expo native project must already be generated.
 
-Once implemented, the app will be runnable with:
+```sh
+npx expo prebuild
+```
+
+Steps to test the Android SDK using `mavenLocal`:
+
+1. Clone the Android SDK repository:
+
+```sh
+git clone https://github.com/the-momentum/open_wearables_android_sdk
+cd open_wearables_android_sdk
+```
+
+2. From the root of that repository, publish the SDK to Maven Local:
+
+```sh
+git checkout v0.5.0
+./gradlew publishToMavenLocal
+```
+
+3. In this example project, add `mavenLocal()` under `allRepositories` (it must be first!) in:
+
+```
+example/android/build.gradle
+```
+
+Example:
+
+```gradle
+allprojects {
+  repositories {
+    mavenLocal()
+    ...
+  }
+}
+```
+
+4. Run the Android app:
 
 ```sh
 npx expo run:android

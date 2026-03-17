@@ -18,8 +18,13 @@
   "keywords": [
     "react-native",
     "expo",
+    "OpenWearables",
+    "OpenWearablesHealthSDK",
+    "OpenWearablesRNSDK",
     "open-wearables",
-    "OpenWearables"
+    "health",
+    "wellness",
+    "wearable"
   ],
   "repository": "https://github.com/TheBlueBoxDev/openwereables-react-native-sdk",
   "bugs": {
@@ -27,7 +32,7 @@
   },
   "author": "Nino <ninotell@gmail.com> (https://github.com/ninotell)",
   "license": "MIT",
-  "homepage": "https://github.com/TheBlueBoxDev/openwereables-react-native-sdk#readme",
+  "homepage": "https://www.openwearables.io/",
   "devDependencies": {
     "@types/react": "~19.1.0",
     "expo-module-scripts": "^5.0.8",

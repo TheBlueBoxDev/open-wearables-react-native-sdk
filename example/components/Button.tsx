@@ -1,10 +1,10 @@
 import { Pressable, StyleSheet, Text } from "react-native";
 
 export const Colors = {
-  primary: "#007AFF",
-  destructive: "#FF3B30",
-  positive: "#34C759",
-  muted: "#8E8E93",
+  primary: "#0A84FF",
+  destructive: "#FF453A",
+  positive: "#30D158",
+  muted: "#636366",
 };
 
 type Props = {

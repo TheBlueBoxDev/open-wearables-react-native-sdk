@@ -1,23 +1,38 @@
 import { StyleSheet, Text, View } from "react-native";
 
-export function Group(props: { name: string; children: React.ReactNode }) {
+interface GroupProps {
+  name?: string;
+  description?: string;
+  children: React.ReactNode;
+}
+
+export function Group({ name, description, children }: GroupProps) {
   return (
     <View style={styles.group}>
-      <Text style={styles.groupHeader}>{props.name}</Text>
-      {props.children}
+      {name != null && <Text style={styles.groupHeader}>{name.toUpperCase()}</Text>}
+      {description != null && <Text style={styles.groupDescription}>{description}</Text>}
+      {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   groupHeader: {
-    fontSize: 20,
-    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    color: "#8E8E93",
+    marginBottom: 4,
+  },
+  groupDescription: {
+    fontSize: 13,
+    color: "#636366",
+    marginBottom: 10,
   },
   group: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    gap: 8,
+    backgroundColor: "#1C1C1E",
+    borderRadius: 12,
+    padding: 16,
+    gap: 0,
   },
 });

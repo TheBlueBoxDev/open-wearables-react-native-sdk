@@ -12,64 +12,77 @@ export type AuthErrorEventPayload = {
   message: string;
 };
 
-export type HealthDataType =
+export enum OWLogLevel {
+  None = 0,
+  Always = 1,
+  Debug = 2,
+}
+
+export enum HealthDataType {
   // Activity & Mobility
-  | "steps"
-  | "distanceWalkingRunning"
-  | "distanceCycling"
-  | "flightsClimbed"
-  | "walkingSpeed"
-  | "walkingStepLength"
-  | "walkingAsymmetryPercentage"
-  | "walkingDoubleSupportPercentage"
-  | "sixMinuteWalkTestDistance"
-  | "activeEnergy"
-  | "basalEnergy"
+  Steps = "steps",
+  DistanceWalkingRunning = "distanceWalkingRunning",
+  DistanceCycling = "distanceCycling",
+  FlightsClimbed = "flightsClimbed",
+  WalkingSpeed = "walkingSpeed",
+  WalkingStepLength = "walkingStepLength",
+  WalkingAsymmetryPercentage = "walkingAsymmetryPercentage",
+  WalkingDoubleSupportPercentage = "walkingDoubleSupportPercentage",
+  SixMinuteWalkTestDistance = "sixMinuteWalkTestDistance",
+  ActiveEnergy = "activeEnergy",
+  BasalEnergy = "basalEnergy",
 
   // Heart & Cardiovascular
-  | "heartRate"
-  | "restingHeartRate"
-  | "heartRateVariabilitySDNN"
-  | "vo2Max"
-  | "oxygenSaturation"
-  | "respiratoryRate"
+  HeartRate = "heartRate",
+  RestingHeartRate = "restingHeartRate",
+  HeartRateVariabilitySDNN = "heartRateVariabilitySDNN",
+  Vo2Max = "vo2Max",
+  OxygenSaturation = "oxygenSaturation",
+  RespiratoryRate = "respiratoryRate",
 
   // Body Measurements
-  | "bodyMass"
-  | "height"
-  | "bmi"
-  | "bodyFatPercentage"
-  | "leanBodyMass"
-  | "waistCircumference"
-  | "bodyTemperature"
+  BodyMass = "bodyMass",
+  Height = "height",
+  Bmi = "bmi",
+  BodyFatPercentage = "bodyFatPercentage",
+  LeanBodyMass = "leanBodyMass",
+  WaistCircumference = "waistCircumference",
+  BodyTemperature = "bodyTemperature",
 
   // Blood & Metabolic
-  | "bloodGlucose"
-  | "insulinDelivery"
-  | "bloodPressureSystolic"
-  | "bloodPressureDiastolic"
-  | "bloodPressure"
+  BloodGlucose = "bloodGlucose",
+  InsulinDelivery = "insulinDelivery",
+  BloodPressureSystolic = "bloodPressureSystolic",
+  BloodPressureDiastolic = "bloodPressureDiastolic",
+  BloodPressure = "bloodPressure",
 
   // Sleep & Mindfulness
-  | "sleep"
-  | "mindfulSession"
+  Sleep = "sleep",
+  MindfulSession = "mindfulSession",
 
   // Reproductive Health
-  | "menstrualFlow"
-  | "cervicalMucusQuality"
-  | "ovulationTestResult"
-  | "sexualActivity"
+  MenstrualFlow = "menstrualFlow",
+  CervicalMucusQuality = "cervicalMucusQuality",
+  OvulationTestResult = "ovulationTestResult",
+  SexualActivity = "sexualActivity",
 
   // Nutrition
-  | "dietaryEnergyConsumed"
-  | "dietaryCarbohydrates"
-  | "dietaryProtein"
-  | "dietaryFatTotal"
-  | "dietaryWater"
+  DietaryEnergyConsumed = "dietaryEnergyConsumed",
+  DietaryCarbohydrates = "dietaryCarbohydrates",
+  DietaryProtein = "dietaryProtein",
+  DietaryFatTotal = "dietaryFatTotal",
+  DietaryWater = "dietaryWater",
 
   // Workout
-  | "workout"
+  Workout = "workout",
 
   // Aliases
-  | "restingEnergy"
-  | "bloodOxygen";
+  RestingEnergy = "restingEnergy",
+  BloodOxygen = "bloodOxygen",
+}
+
+export type HealthDataProvider = {
+  id: string;
+  displayName: string;
+  isAvailable: boolean;
+};

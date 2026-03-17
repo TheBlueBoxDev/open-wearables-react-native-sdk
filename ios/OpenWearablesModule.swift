@@ -1,10 +1,9 @@
 import ExpoModulesCore
 import OpenWearablesHealthSDK
 
-// See https://docs.expo.dev/modules/module-api for more details about available components.
 public class OpenWearablesModule: Module {
     public func definition() -> ModuleDefinition {
-        Name("OpenWearables")
+        Name("OpenWearablesHealthSDK")
         
         // MARK: - Callbacks (Events)        
         Events("onLog", "onAuthError")
@@ -26,16 +25,17 @@ public class OpenWearablesModule: Module {
         }
         
         // MARK: - Configure        
-        Function("configure") { (host: String) in
+        Function("configure") { (host: String, customSyncURL: String?) in
             OpenWearablesHealthSDK.shared.configure(host: host)
         }
         
         // MARK: - Auth        
-        Function("signIn") { (
+        AsyncFunction("signIn") { (
             userId: String,
             accessToken: String?,
             refreshToken: String?,
-            apiKey: String?
+            apiKey: String?,
+            promise: Promise
         ) in
             OpenWearablesHealthSDK.shared.signIn(
                 userId: userId,
@@ -43,10 +43,12 @@ public class OpenWearablesModule: Module {
                 refreshToken: refreshToken,
                 apiKey: apiKey
             )
+            promise.resolve()
         }
         
-        Function("signOut") {
+        AsyncFunction("signOut") { (promise: Promise) in
             OpenWearablesHealthSDK.shared.signOut()
+            promise.resolve()
         }
         
         Function("updateTokens") { (accessToken: String, refreshToken: String) in
@@ -72,15 +74,18 @@ public class OpenWearablesModule: Module {
             }
         }
         
-        // MARK: - Sync        
-        AsyncFunction("startBackgroundSync") { (promise: Promise) in
-            OpenWearablesHealthSDK.shared.startBackgroundSync { started in
+        // MARK: - Sync    
+        Function("setSyncInterval") { (minutes: Double) in } // (not implemented in iOS SDK)
+            
+        AsyncFunction("startBackgroundSync") { (syncDaysBack: Int?, promise: Promise) in
+            OpenWearablesHealthSDK.shared.startBackgroundSync(syncDaysBack: syncDaysBack) { started in
                 promise.resolve(started)
             }
         }
         
-        Function("stopBackgroundSync") {
+        AsyncFunction("stopBackgroundSync") { (promise: Promise) in
             OpenWearablesHealthSDK.shared.stopBackgroundSync()
+            promise.resolve()
         }
         
         AsyncFunction("syncNow") { (promise: Promise) in
@@ -89,7 +94,7 @@ public class OpenWearablesModule: Module {
             }
         }
         
-        Function("resumeSync") { (promise: Promise) in
+        AsyncFunction("resumeSync") { (promise: Promise) in
             OpenWearablesHealthSDK.shared.resumeSync { resumed in
                 promise.resolve(resumed)
             }
@@ -110,28 +115,20 @@ public class OpenWearablesModule: Module {
         Function("getStoredCredentials") {
             return OpenWearablesHealthSDK.shared.getStoredCredentials()
         }
-    }
-}
 
-import UIKit
-
-public class OpenWearablesAppDelegateSubscriber: ExpoAppDelegateSubscriber {
-    public func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-    ) -> Bool {
+        // MARK: - Providers (not implemented in iOS SDK)        
+        Function("getAvailableProviders") { return [] }
         
-        // Trigger background task registration
-        let _ = OpenWearablesHealthSDK.shared
-        
-        return true
-    }
+        Function("setProvider") { }
 
-    public func application(
-        _ application: UIApplication,
-        handleEventsForBackgroundURLSession identifier: String,
-        completionHandler: @escaping () -> Void
-    ) {
-        OpenWearablesHealthSDK.setBackgroundCompletionHandler(completionHandler)
+        // MARK: - Logs
+        Function("setLogLevel") { (levelId: Int) in
+            let level = OWLogLevel(rawValue: levelId) ?? .always
+            OpenWearablesHealthSDK.shared.setLogLevel(level)
+        }
+
+        Function("getLogLevel") {
+            return OpenWearablesHealthSDK.shared.logLevel.rawValue
+        }
     }
 }
