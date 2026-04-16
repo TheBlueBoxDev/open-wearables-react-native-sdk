@@ -134,7 +134,7 @@ export default function App() {
           style={{ flex: 1 }}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Open Wearables</Text>
+            <Text style={styles.headerTitle}>Swim AI</Text>
             <Pressable onPress={() => setShowLogs(true)} hitSlop={8}>
               <View style={styles.logsButton}>
                 <Ionicons
