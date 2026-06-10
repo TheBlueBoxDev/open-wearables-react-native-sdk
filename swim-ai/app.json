@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tbb.ai.swim"
+      "bundleIdentifier": "ar.t2b.swimai",
+      "appleTeamId": "TSW3RZ3B7S"
     },
     "android": {
       "adaptiveIcon": {
