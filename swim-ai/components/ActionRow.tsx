@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface ActionRowProps {
   title: string;
@@ -9,6 +9,8 @@ interface ActionRowProps {
   onPress: () => void;
   titleColor?: string;
   hasBorderBottom?: boolean;
+  loading?: boolean;
+  disabled?: boolean;
 }
 
 export function ActionRow({
@@ -19,6 +21,8 @@ export function ActionRow({
   onPress,
   titleColor = "#FFFFFF",
   hasBorderBottom = false,
+  loading = false,
+  disabled = false,
 }: ActionRowProps) {
   return (
     <Pressable
@@ -26,8 +30,10 @@ export function ActionRow({
         styles.row,
         hasBorderBottom && styles.rowBorder,
         pressed && styles.rowPressed,
+        disabled && styles.rowDisabled,
       ]}
       onPress={onPress}
+      disabled={disabled}
     >
       <View style={[styles.iconBox, { backgroundColor: iconBgColor }]}>
         <Ionicons name={iconName as any} size={20} color="#FFFFFF" />
@@ -36,7 +42,11 @@ export function ActionRow({
         <Text style={[styles.title, { color: titleColor }]}>{title}</Text>
         {description != null && <Text style={styles.description}>{description}</Text>}
       </View>
-      <Ionicons name="chevron-forward" size={16} color="#48484A" />
+      {loading ? (
+        <ActivityIndicator size="small" color="#8E8E93" />
+      ) : (
+        <Ionicons name="chevron-forward" size={16} color="#48484A" />
+      )}
     </Pressable>
   );
 }
@@ -55,6 +65,9 @@ const styles = StyleSheet.create({
   },
   rowPressed: {
     opacity: 0.6,
+  },
+  rowDisabled: {
+    opacity: 0.5,
   },
   iconBox: {
     width: 36,

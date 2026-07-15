@@ -16,6 +16,7 @@ import {
 import { ActionsGroup } from "./components/ActionsGroup";
 import { ProvidersGroup } from "./components/ProvidersGroup";
 import { SessionGroup } from "./components/SessionGroup";
+import { SyncSetupGroup } from "./components/SyncSetupGroup";
 import { StatusBanner } from "./components/StatusBanner";
 import { Toast } from "./components/Toast";
 import { useLogs } from "./hooks/useLogs";
@@ -130,7 +131,7 @@ export default function App() {
           />
         </Modal>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
           <View style={styles.header}>
@@ -162,10 +163,18 @@ export default function App() {
               <SessionGroup onConnectSuccess={handleConnectSuccess} />
             ) : (
               <>
-                <ProvidersGroup
-                  savedProvider={credentials.provider}
-                  onProviderChange={handleProviderChange}
-                />
+                {!isSyncActive && (
+                  <ProvidersGroup
+                    savedProvider={credentials.provider}
+                    onProviderChange={handleProviderChange}
+                  />
+                )}
+                {isAuthorized === true && !isSyncActive && (
+                  <SyncSetupGroup
+                    onSyncStarted={() => setIsSyncActive(true)}
+                    onToast={showToast}
+                  />
+                )}
                 <ActionsGroup
                   isAuthorized={isAuthorized}
                   isSyncActive={isSyncActive}
