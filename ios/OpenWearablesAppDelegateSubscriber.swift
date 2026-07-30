@@ -9,7 +9,6 @@ public class OpenWearablesAppDelegateSubscriber: ExpoAppDelegateSubscriber {
     ) -> Bool {
         
         // Trigger background task registration
-//        let _ = OpenWearablesHealthSDK.shared
         let sdk = OpenWearablesHealthSDK.shared
         
         // The SDK keeps `host` in memory only; restore the persisted value so
