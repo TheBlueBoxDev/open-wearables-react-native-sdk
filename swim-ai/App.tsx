@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEvent } from "expo";
-import OpenWearablesHealthSDK, { HealthDataType } from "open-wearables";
+import OpenWearablesHealthSDK from "open-wearables";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -8,18 +8,18 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { ActionsGroup } from "./components/ActionsGroup";
-import { ProvidersGroup } from "./components/ProvidersGroup";
 import { SessionGroup } from "./components/SessionGroup";
-import { SyncSetupGroup } from "./components/SyncSetupGroup";
-import { StatusBanner } from "./components/StatusBanner";
 import { Toast } from "./components/Toast";
+import { WearablesGroup } from "./components/WearablesGroup";
 import { useLogs } from "./hooks/useLogs";
+import { useWearables } from "./hooks/useWearables";
 import { LogsScreen } from "./screens/LogsScreen";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -27,39 +27,31 @@ export default function App() {
   const onAuthErrorPayload = useEvent(OpenWearablesHealthSDK, "onAuthError");
   const [credentials, setCredentials] = useState<Record<string, any>>({});
   const [showLogs, setShowLogs] = useState(false);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [isSyncActive, setIsSyncActive] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(
     null
   );
   const { logs, clearLogs } = useLogs();
+  const userId = credentials.userId ?? null;
+  const wearables = useWearables(userId);
 
-  const autoRequestAuthorization = async () => {
-    const granted = await OpenWearablesHealthSDK.requestAuthorization(
-      Object.values(HealthDataType)
-    );
-    setIsAuthorized(granted);
+  // `userId` drives every server call, so fall back to the stored session when
+  // the credentials map doesn't carry it.
+  const refreshStoredCredentials = () => {
+    const stored = { ...(OpenWearablesHealthSDK.getStoredCredentials() ?? {}) };
+    if (!stored.userId) {
+      const restored = OpenWearablesHealthSDK.restoreSession() as string | null;
+      if (restored) stored.userId = restored;
+    }
+    setCredentials(stored);
   };
 
   useEffect(() => {
-    const init = async () => {
-      const stored = OpenWearablesHealthSDK.getStoredCredentials();
-      setCredentials(stored ?? {});
-
-      if (process.env.EXPO_PUBLIC_HOST_URL) {
-        OpenWearablesHealthSDK.configure(process.env.EXPO_PUBLIC_HOST_URL);
-      }
-
-      const valid = Boolean(OpenWearablesHealthSDK.isSessionValid());
-      setIsConnected(valid);
-      if (valid) {
-        setIsSyncActive(Boolean(OpenWearablesHealthSDK.isSyncActive()));
-        await autoRequestAuthorization();
-      }
-    };
-
-    init();
+    if (process.env.EXPO_PUBLIC_HOST_URL) {
+      OpenWearablesHealthSDK.configure(process.env.EXPO_PUBLIC_HOST_URL);
+    }
+    refreshStoredCredentials();
+    setIsConnected(Boolean(OpenWearablesHealthSDK.isSessionValid()));
   }, []);
 
   useEffect(() => {
@@ -67,9 +59,9 @@ export default function App() {
     Alert.alert(onAuthErrorPayload.message);
   }, [onAuthErrorPayload]);
 
-  const refreshStoredCredentials = () => {
-    const stored = OpenWearablesHealthSDK.getStoredCredentials();
-    setCredentials(stored ?? {});
+  const handleRefresh = async () => {
+    refreshStoredCredentials();
+    await wearables.refetch();
   };
 
   const showToast = (message: string) => {
@@ -77,44 +69,15 @@ export default function App() {
   };
 
   const handleConnectSuccess = () => {
-    const stored = OpenWearablesHealthSDK.getStoredCredentials();
-    setCredentials(stored ?? {});
+    refreshStoredCredentials();
     setIsConnected(true);
     showToast("Connected successfully");
-    // iOS only has 1 provider (HealthKit)
-    if (Platform.OS === "ios" || stored?.provider) {
-      autoRequestAuthorization();
-    }
   };
 
   const handleDisconnect = () => {
-    setIsAuthorized(null);
-    setIsSyncActive(false);
     setIsConnected(false);
     refreshStoredCredentials();
   };
-
-  const handleProviderChange = () => {
-    setIsAuthorized(null);
-    setIsSyncActive(false);
-    refreshStoredCredentials();
-    autoRequestAuthorization();
-  };
-
-  const getProviderDisplayName = (): string | null => {
-    if (!credentials.provider) return null;
-    const providers = OpenWearablesHealthSDK.getAvailableProviders();
-    return (
-      providers.find((p) => p.id === credentials.provider)?.displayName ?? null
-    );
-  };
-
-  const syncSubtitle = isConnected
-    ? (() => {
-        const name = getProviderDisplayName();
-        return name ? `Connected via ${name}` : "Connected";
-      })()
-    : "Not connected";
 
   return (
     <SafeAreaProvider>
@@ -157,32 +120,29 @@ export default function App() {
             contentContainerStyle={styles.contentContainer}
             style={styles.scroll}
             keyboardShouldPersistTaps="always"
+            refreshControl={
+              <RefreshControl
+                refreshing={wearables.refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#8E8E93"
+              />
+            }
           >
-            <StatusBanner isSyncing={isSyncActive} subtitle={syncSubtitle} />
             {isConnected === false ? (
               <SessionGroup onConnectSuccess={handleConnectSuccess} />
             ) : (
               <>
-                {!isSyncActive && (
-                  <ProvidersGroup
-                    savedProvider={credentials.provider}
-                    onProviderChange={handleProviderChange}
-                  />
-                )}
-                {isAuthorized === true && !isSyncActive && (
-                  <SyncSetupGroup
-                    onSyncStarted={() => setIsSyncActive(true)}
-                    onToast={showToast}
-                  />
-                )}
-                <ActionsGroup
-                  isAuthorized={isAuthorized}
-                  isSyncActive={isSyncActive}
-                  onAuthChange={setIsAuthorized}
-                  onSyncChange={setIsSyncActive}
-                  onDisconnect={handleDisconnect}
+                <WearablesGroup
+                  userId={userId}
+                  apiProviders={wearables.apiProviders}
+                  connections={wearables.connections}
+                  loading={wearables.loading}
+                  error={wearables.error}
+                  refetch={wearables.refetch}
+                  markPendingAuth={wearables.markPendingAuth}
                   onToast={showToast}
                 />
+                <ActionsGroup onDisconnect={handleDisconnect} />
               </>
             )}
             {toast != null && (

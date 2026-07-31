@@ -1,0 +1,138 @@
+import { HealthDataProvider } from "open-wearables";
+import { Platform } from "react-native";
+import {
+  ConnectionStatus,
+  ProviderSetting,
+  UserConnection,
+  iconUrl,
+} from "../../api/cloud";
+
+export type WearableProvider = {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  status: ConnectionStatus;
+  connectionId: string | null;
+  lastSyncedAt: string | null;
+  isNative: boolean;
+  isDisabled: boolean;
+  hasCloudApi: boolean;
+  disabledReason: string | null;
+};
+
+/**
+ * Merges what the SDK offers on this device with what the server knows about
+ * the user, producing a single list where each provider carries its own status.
+ */
+export function buildProviders(
+  sdkProviders: HealthDataProvider[],
+  apiProviders: ProviderSetting[],
+  connections: UserConnection[],
+  isSyncActive: boolean,
+  sdkActiveProviderId: string | null
+): WearableProvider[] {
+  const isIOS = Platform.OS === "ios";
+
+  // provider → best connection (prefer an active one)
+  const connectionMap = new Map<string, UserConnection>();
+  for (const conn of connections) {
+    const existing = connectionMap.get(conn.provider);
+    if (!existing || (conn.status === "active" && existing.status !== "active")) {
+      connectionMap.set(conn.provider, conn);
+    }
+  }
+
+  const sdkProviderMap = new Map<string, HealthDataProvider>();
+  for (const p of sdkProviders) {
+    sdkProviderMap.set(p.id, p);
+  }
+
+  // Which provider ids can be read from this device
+  const nativeProviderIds = new Set<string>(
+    isIOS ? ["apple"] : sdkProviders.map((p) => p.id)
+  );
+
+  // The native provider currently syncing, used for the "disconnect X first" hints
+  let activeNativeProvider: ProviderSetting | null = null;
+  if (isSyncActive) {
+    if (sdkActiveProviderId) {
+      activeNativeProvider =
+        apiProviders.find(
+          (p) =>
+            p.provider === sdkActiveProviderId &&
+            nativeProviderIds.has(p.provider)
+        ) ?? null;
+    }
+    if (!activeNativeProvider) {
+      activeNativeProvider =
+        apiProviders.find(
+          (p) =>
+            nativeProviderIds.has(p.provider) &&
+            connectionMap.get(p.provider)?.status === "active"
+        ) ?? null;
+    }
+  }
+
+  const nativeProviders: WearableProvider[] = apiProviders
+    .filter((p) => {
+      if (!nativeProviderIds.has(p.provider) || !p.is_enabled) return false;
+      return isIOS ? true : sdkProviderMap.get(p.provider)?.isAvailable ?? false;
+    })
+    .map((p) => {
+      const conn = connectionMap.get(p.provider);
+      let status: ConnectionStatus = conn?.status ?? "not-connected";
+      if (isSyncActive && sdkActiveProviderId === p.provider) {
+        status = "active";
+      }
+      const anotherNativeActive =
+        activeNativeProvider != null &&
+        activeNativeProvider.provider !== p.provider &&
+        status !== "active";
+
+      let isDisabled = false;
+      let disabledReason: string | null = null;
+
+      if (anotherNativeActive && p.has_cloud_api) {
+        // Still tappable — the cloud path remains available
+        disabledReason = `Disconnect ${activeNativeProvider!.name} to use this option`;
+      } else if (anotherNativeActive) {
+        isDisabled = true;
+        disabledReason = `Disconnect ${activeNativeProvider!.name} to connect ${p.name}`;
+      }
+
+      return {
+        id: p.provider,
+        name: p.name,
+        iconUrl: iconUrl(p),
+        status,
+        connectionId: conn?.id ?? null,
+        lastSyncedAt: conn?.last_synced_at ?? null,
+        isNative: true,
+        isDisabled,
+        hasCloudApi: p.has_cloud_api,
+        disabledReason,
+      };
+    });
+
+  const nativeIds = new Set(nativeProviders.map((p) => p.id));
+
+  const cloudProviders: WearableProvider[] = apiProviders
+    .filter((p) => p.has_cloud_api && p.is_enabled && !nativeIds.has(p.provider))
+    .map((p) => {
+      const conn = connectionMap.get(p.provider);
+      return {
+        id: p.provider,
+        name: p.name,
+        iconUrl: iconUrl(p),
+        status: conn?.status ?? "not-connected",
+        connectionId: conn?.id ?? null,
+        lastSyncedAt: conn?.last_synced_at ?? null,
+        isNative: false,
+        isDisabled: false,
+        hasCloudApi: true,
+        disabledReason: null,
+      };
+    });
+
+  return [...nativeProviders, ...cloudProviders];
+}
