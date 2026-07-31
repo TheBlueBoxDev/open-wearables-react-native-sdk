@@ -7,24 +7,24 @@ import {
   View,
 } from "react-native";
 
-export type CloudConnectState = {
+export type ConnectConfirmState = {
   providerName: string;
-  authUrl: string | null;
-  error: string | null;
+  message: string;
   loading: boolean;
+  error: string | null;
 };
 
-interface CloudConnectModalProps {
-  state: CloudConnectState | null;
+interface ConnectConfirmModalProps {
+  state: ConnectConfirmState | null;
   onClose: () => void;
-  onConnect: () => void;
+  onConfirm: () => void;
 }
 
-export function CloudConnectModal({
+export function ConnectConfirmModal({
   state,
   onClose,
-  onConnect,
-}: CloudConnectModalProps) {
+  onConfirm,
+}: ConnectConfirmModalProps) {
   const renderBody = () => {
     if (state == null) return null;
 
@@ -57,10 +57,7 @@ export function CloudConnectModal({
     return (
       <>
         <Text style={styles.title}>Connect {state.providerName}</Text>
-        <Text style={styles.body}>
-          You will sign in to your {state.providerName} account to allow direct
-          sync of your data
-        </Text>
+        <Text style={styles.body}>{state.message}</Text>
         <View style={styles.buttons}>
           <Pressable
             onPress={onClose}
@@ -74,7 +71,7 @@ export function CloudConnectModal({
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
           <Pressable
-            onPress={onConnect}
+            onPress={onConfirm}
             style={({ pressed }) => [
               styles.button,
               styles.connectButton,

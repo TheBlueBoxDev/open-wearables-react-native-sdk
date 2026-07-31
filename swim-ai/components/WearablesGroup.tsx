@@ -22,15 +22,26 @@ import {
 } from "../api/cloud";
 import { Group } from "./Group";
 import { WearableProvider, buildProviders } from "./wearables/buildProviders";
-import {
-  CloudConnectModal,
-  CloudConnectState,
-} from "./wearables/CloudConnectModal";
+import { ConnectConfirmModal } from "./wearables/ConnectConfirmModal";
 import { ProviderActionsModal } from "./wearables/ProviderActionsModal";
 import { ProviderRow } from "./wearables/ProviderRow";
 
 const SYNC_IN_PROGRESS_KEY = "syncInProgress";
-const LAST_SYNC_PREFIX = "lastSyncDate:";
+
+/** A connect the user has been asked to confirm, before anything happens. */
+type ConnectPrompt = {
+  provider: WearableProvider;
+  kind: "native" | "cloud";
+  authUrl: string | null;
+  loading: boolean;
+  error: string | null;
+};
+
+function promptMessage(prompt: ConnectPrompt): string {
+  return prompt.kind === "cloud"
+    ? `You will sign in to your ${prompt.provider.name} account to allow direct sync of your data`
+    : `Your ${prompt.provider.name} data will be synced automatically from this device. You will be asked to grant health permissions.`;
+}
 
 /** iOS reports no providers — HealthKit is the only one. */
 function getSdkProviders(): HealthDataProvider[] {
@@ -39,13 +50,6 @@ function getSdkProviders(): HealthDataProvider[] {
     return [{ id: "apple", displayName: "Apple Health", isAvailable: true }];
   }
   return providers;
-}
-
-function getSdkActiveProvider(): string | null {
-  if (Platform.OS === "ios") {
-    return OpenWearablesHealthSDK.isSyncActive() ? "apple" : null;
-  }
-  return OpenWearablesHealthSDK.getStoredCredentials()?.provider ?? null;
 }
 
 interface WearablesGroupProps {
@@ -69,49 +73,15 @@ export function WearablesGroup({
   markPendingAuth,
   onToast,
 }: WearablesGroupProps) {
-  const [isSyncActive, setIsSyncActive] = useState(() =>
-    Boolean(OpenWearablesHealthSDK.isSyncActive())
-  );
-  const [sdkActiveProviderId, setSdkActiveProviderId] = useState<string | null>(
-    null
-  );
   const [selectedProvider, setSelectedProvider] =
     useState<WearableProvider | null>(null);
-  const [cloudConnect, setCloudConnect] = useState<
-    (CloudConnectState & { providerId: string }) | null
-  >(null);
-  const [localSync, setLocalSync] = useState<Record<string, string>>({});
+  const [connectPrompt, setConnectPrompt] = useState<ConnectPrompt | null>(
+    null
+  );
   const [busy, setBusy] = useState(false);
   const isConnectingRef = useRef(false);
 
   const sdkProviders = useMemo(getSdkProviders, []);
-
-  useEffect(() => {
-    setSdkActiveProviderId(getSdkActiveProvider());
-  }, []);
-
-  // Manual syncs are recorded locally — the server's last_synced_at can lag.
-  const recordLocalSync = useCallback(async (providerId: string | null) => {
-    if (providerId == null) return;
-    const now = new Date().toISOString();
-    setLocalSync((prev) => ({ ...prev, [providerId]: now }));
-    await AsyncStorage.setItem(`${LAST_SYNC_PREFIX}${providerId}`, now);
-  }, []);
-
-  useEffect(() => {
-    const loadLocalSync = async () => {
-      const keys = await AsyncStorage.getAllKeys();
-      const syncKeys = keys.filter((k) => k.startsWith(LAST_SYNC_PREFIX));
-      if (syncKeys.length === 0) return;
-      const entries = await AsyncStorage.multiGet(syncKeys);
-      const stored: Record<string, string> = {};
-      for (const [key, value] of entries) {
-        if (value) stored[key.slice(LAST_SYNC_PREFIX.length)] = value;
-      }
-      setLocalSync(stored);
-    };
-    loadLocalSync();
-  }, []);
 
   // Resume a sync that was interrupted while the app was closed
   useEffect(() => {
@@ -128,7 +98,6 @@ export function WearablesGroup({
         } else {
           await OpenWearablesHealthSDK.syncNow();
         }
-        await recordLocalSync(getSdkActiveProvider());
       } catch {
         // Resume/restart failed — ignore
       } finally {
@@ -137,34 +106,14 @@ export function WearablesGroup({
       }
     };
     resumeInterruptedSync();
-  }, [recordLocalSync]);
+  }, []);
 
-  const providers = useMemo(() => {
-    const built = buildProviders(
-      sdkProviders,
-      apiProviders,
-      connections,
-      isSyncActive,
-      sdkActiveProviderId
-    );
-    return built.map((p) => {
-      const local = localSync[p.id];
-      if (local == null) return p;
-      if (p.lastSyncedAt == null || new Date(local) > new Date(p.lastSyncedAt)) {
-        return { ...p, lastSyncedAt: local };
-      }
-      return p;
-    });
-  }, [
-    sdkProviders,
-    apiProviders,
-    connections,
-    isSyncActive,
-    sdkActiveProviderId,
-    localSync,
-  ]);
+  const providers = useMemo(
+    () => buildProviders(sdkProviders, apiProviders, connections),
+    [sdkProviders, apiProviders, connections]
+  );
 
-  const startNativeConnect = useCallback(
+  const runNativeConnect = useCallback(
     async (provider: WearableProvider) => {
       if (!provider.isNative || isConnectingRef.current) return;
       isConnectingRef.current = true;
@@ -180,13 +129,14 @@ export function WearablesGroup({
         const authorized = await OpenWearablesHealthSDK.requestAuthorization(
           Object.values(HealthDataType)
         );
+        console.log("authorized: ", authorized);
         if (!authorized) {
           Alert.alert(
             "Access denied",
             "Please grant health permissions to enable sync.",
             [
               { text: "Cancel", style: "cancel" },
-              { text: "Retry", onPress: () => startNativeConnect(provider) },
+              { text: "Retry", onPress: () => runNativeConnect(provider) },
             ]
           );
           return;
@@ -194,8 +144,6 @@ export function WearablesGroup({
 
         OpenWearablesHealthSDK.resetAnchors();
         await OpenWearablesHealthSDK.startBackgroundSync(30);
-        setIsSyncActive(true);
-        setSdkActiveProviderId(provider.id);
         onToast(`${provider.name} connected`);
         await refetch();
       } catch (e: any) {
@@ -208,44 +156,65 @@ export function WearablesGroup({
     [onToast, refetch]
   );
 
+  const promptNativeConnect = useCallback((provider: WearableProvider) => {
+    setConnectPrompt({
+      provider,
+      kind: "native",
+      authUrl: null,
+      loading: false,
+      error: null,
+    });
+  }, []);
+
+  // The authorize call runs up front so the confirm dialog can report a
+  // failure before sending the user out to the browser.
   const startCloudConnect = useCallback(
     async (provider: WearableProvider) => {
       if (userId == null) return;
-      setCloudConnect({
-        providerId: provider.id,
-        providerName: provider.name,
+      setConnectPrompt({
+        provider,
+        kind: "cloud",
         authUrl: null,
-        error: null,
         loading: true,
+        error: null,
       });
       try {
         const res = await authorizeProvider(provider.id, userId);
-        setCloudConnect({
-          providerId: provider.id,
-          providerName: provider.name,
+        setConnectPrompt({
+          provider,
+          kind: "cloud",
           authUrl: res.authorization_url,
-          error: null,
           loading: false,
+          error: null,
         });
       } catch (e: any) {
-        setCloudConnect({
-          providerId: provider.id,
-          providerName: provider.name,
+        setConnectPrompt({
+          provider,
+          kind: "cloud",
           authUrl: null,
-          error: e?.message ?? String(e),
           loading: false,
+          error: e?.message ?? String(e),
         });
       }
     },
     [userId]
   );
 
-  const handleCloudConnect = useCallback(() => {
-    if (cloudConnect?.authUrl == null) return;
-    markPendingAuth();
-    Linking.openURL(cloudConnect.authUrl);
-    setCloudConnect(null);
-  }, [cloudConnect, markPendingAuth]);
+  const handleConfirmConnect = useCallback(() => {
+    const prompt = connectPrompt;
+    if (prompt == null) return;
+
+    if (prompt.kind === "cloud") {
+      if (prompt.authUrl == null) return;
+      markPendingAuth();
+      Linking.openURL(prompt.authUrl);
+      setConnectPrompt(null);
+      return;
+    }
+
+    setConnectPrompt(null);
+    runNativeConnect(prompt.provider);
+  }, [connectPrompt, markPendingAuth, runNativeConnect]);
 
   const handleRowPress = (provider: WearableProvider) => {
     if (provider.status === "active") {
@@ -256,7 +225,7 @@ export function WearablesGroup({
     } else if (provider.hasCloudApi) {
       startCloudConnect(provider);
     } else {
-      startNativeConnect(provider);
+      promptNativeConnect(provider);
     }
   };
 
@@ -268,7 +237,6 @@ export function WearablesGroup({
     await AsyncStorage.setItem(SYNC_IN_PROGRESS_KEY, "true");
     try {
       await OpenWearablesHealthSDK.syncNow();
-      await recordLocalSync(provider.id);
       onToast("Data synced");
     } catch (e: any) {
       Alert.alert("Sync error", e?.message ?? String(e));
@@ -288,18 +256,10 @@ export function WearablesGroup({
       if (provider.isNative) {
         await OpenWearablesHealthSDK.stopBackgroundSync();
         await AsyncStorage.removeItem(SYNC_IN_PROGRESS_KEY);
-        setIsSyncActive(false);
-        setSdkActiveProviderId(null);
       }
       if (provider.connectionId != null && userId != null) {
         await disconnectProvider(userId, provider.id);
       }
-      await AsyncStorage.removeItem(`${LAST_SYNC_PREFIX}${provider.id}`);
-      setLocalSync((prev) => {
-        const next = { ...prev };
-        delete next[provider.id];
-        return next;
-      });
       onToast(`${provider.name} disconnected`);
     } catch (e: any) {
       Alert.alert("Disconnect error", e?.message ?? String(e));
@@ -347,11 +307,10 @@ export function WearablesGroup({
 
     return (
       <View style={styles.list}>
-        {providers.map((provider, index) => (
+        {providers.map((provider) => (
           <ProviderRow
             key={provider.id}
             provider={provider}
-            hasBorderBottom={index < providers.length - 1}
             onPress={handleRowPress}
           />
         ))}
@@ -374,7 +333,7 @@ export function WearablesGroup({
         onNativeConnect={() => {
           const provider = selectedProvider;
           setSelectedProvider(null);
-          if (provider) startNativeConnect(provider);
+          if (provider) promptNativeConnect(provider);
         }}
         onCloudConnect={() => {
           const provider = selectedProvider;
@@ -382,10 +341,17 @@ export function WearablesGroup({
           if (provider) startCloudConnect(provider);
         }}
       />
-      <CloudConnectModal
-        state={cloudConnect}
-        onClose={() => setCloudConnect(null)}
-        onConnect={handleCloudConnect}
+      <ConnectConfirmModal
+        state={
+          connectPrompt && {
+            providerName: connectPrompt.provider.name,
+            message: promptMessage(connectPrompt),
+            loading: connectPrompt.loading,
+            error: connectPrompt.error,
+          }
+        }
+        onClose={() => setConnectPrompt(null)}
+        onConfirm={handleConfirmConnect}
       />
     </Group>
   );
@@ -393,10 +359,7 @@ export function WearablesGroup({
 
 const styles = StyleSheet.create({
   list: {
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#38383A",
-    overflow: "hidden",
+    gap: 10,
   },
   centered: {
     alignItems: "center",

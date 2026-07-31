@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { ConnectionStatus } from "../../api/cloud";
 
 const STATUS_META: Record<
@@ -13,7 +13,7 @@ const STATUS_META: Record<
   "not-connected": {
     label: "Not connected",
     color: "#8E8E93",
-    backgroundColor: "#2C2C2E",
+    backgroundColor: "#3A3A3C",
   },
   revoked: {
     label: "Disconnected",
@@ -29,13 +29,16 @@ const STATUS_META: Record<
 
 interface StatusPillProps {
   status: ConnectionStatus;
+  style?: StyleProp<ViewStyle>;
 }
 
-export function StatusPill({ status }: StatusPillProps) {
+export function StatusPill({ status, style }: StatusPillProps) {
   const meta = STATUS_META[status] ?? STATUS_META["not-connected"];
 
   return (
-    <View style={[styles.pill, { backgroundColor: meta.backgroundColor }]}>
+    <View
+      style={[styles.pill, { backgroundColor: meta.backgroundColor }, style]}
+    >
       <Text style={[styles.label, { color: meta.color }]}>{meta.label}</Text>
     </View>
   );

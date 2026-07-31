@@ -23,13 +23,14 @@ export type WearableProvider = {
 /**
  * Merges what the SDK offers on this device with what the server knows about
  * the user, producing a single list where each provider carries its own status.
+ *
+ * Status and last-sync always come from the connections service — it is the
+ * real state, including when a provider has been revoked server-side.
  */
 export function buildProviders(
   sdkProviders: HealthDataProvider[],
   apiProviders: ProviderSetting[],
-  connections: UserConnection[],
-  isSyncActive: boolean,
-  sdkActiveProviderId: string | null
+  connections: UserConnection[]
 ): WearableProvider[] {
   const isIOS = Platform.OS === "ios";
 
@@ -52,26 +53,13 @@ export function buildProviders(
     isIOS ? ["apple"] : sdkProviders.map((p) => p.id)
   );
 
-  // The native provider currently syncing, used for the "disconnect X first" hints
-  let activeNativeProvider: ProviderSetting | null = null;
-  if (isSyncActive) {
-    if (sdkActiveProviderId) {
-      activeNativeProvider =
-        apiProviders.find(
-          (p) =>
-            p.provider === sdkActiveProviderId &&
-            nativeProviderIds.has(p.provider)
-        ) ?? null;
-    }
-    if (!activeNativeProvider) {
-      activeNativeProvider =
-        apiProviders.find(
-          (p) =>
-            nativeProviderIds.has(p.provider) &&
-            connectionMap.get(p.provider)?.status === "active"
-        ) ?? null;
-    }
-  }
+  // The connected native provider, used for the "disconnect X first" hints
+  const activeNativeProvider: ProviderSetting | null =
+    apiProviders.find(
+      (p) =>
+        nativeProviderIds.has(p.provider) &&
+        connectionMap.get(p.provider)?.status === "active"
+    ) ?? null;
 
   const nativeProviders: WearableProvider[] = apiProviders
     .filter((p) => {
@@ -80,10 +68,7 @@ export function buildProviders(
     })
     .map((p) => {
       const conn = connectionMap.get(p.provider);
-      let status: ConnectionStatus = conn?.status ?? "not-connected";
-      if (isSyncActive && sdkActiveProviderId === p.provider) {
-        status = "active";
-      }
+      const status: ConnectionStatus = conn?.status ?? "not-connected";
       const anotherNativeActive =
         activeNativeProvider != null &&
         activeNativeProvider.provider !== p.provider &&
