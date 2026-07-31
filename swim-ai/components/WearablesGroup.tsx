@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import OpenWearablesHealthSDK, {
   HealthDataProvider,
   HealthDataType,
@@ -26,8 +25,6 @@ import { ConnectConfirmModal } from "./wearables/ConnectConfirmModal";
 import { ProviderActionsModal } from "./wearables/ProviderActionsModal";
 import { ProviderRow } from "./wearables/ProviderRow";
 
-const SYNC_IN_PROGRESS_KEY = "syncInProgress";
-
 /** A connect the user has been asked to confirm, before anything happens. */
 type ConnectPrompt = {
   provider: WearableProvider;
@@ -50,6 +47,13 @@ function getSdkProviders(): HealthDataProvider[] {
     return [{ id: "apple", displayName: "Apple Health", isAvailable: true }];
   }
   return providers;
+}
+
+/** The provider currently syncing through the SDK, or null when it is idle. */
+function getSdkSyncingProvider(): string | null {
+  if (!OpenWearablesHealthSDK.isSyncActive()) return null;
+  if (Platform.OS === "ios") return "apple";
+  return OpenWearablesHealthSDK.getStoredCredentials()?.provider ?? null;
 }
 
 interface WearablesGroupProps {
@@ -78,46 +82,49 @@ export function WearablesGroup({
   const [connectPrompt, setConnectPrompt] = useState<ConnectPrompt | null>(
     null
   );
-  const [busy, setBusy] = useState(false);
+  const [sdkSyncingProviderId, setSdkSyncingProviderId] = useState<
+    string | null
+  >(null);
   const isConnectingRef = useRef(false);
 
   const sdkProviders = useMemo(getSdkProviders, []);
 
+  const refreshSdkSyncing = useCallback(() => {
+    setSdkSyncingProviderId(getSdkSyncingProvider());
+  }, []);
+
+  useEffect(refreshSdkSyncing, [refreshSdkSyncing]);
+
   // Resume a sync that was interrupted while the app was closed
   useEffect(() => {
     const resumeInterruptedSync = async () => {
-      const status = OpenWearablesHealthSDK.getSyncStatus();
-      const wasInProgress = await AsyncStorage.getItem(SYNC_IN_PROGRESS_KEY);
-      if (!status.hasResumableSession && !wasInProgress) return;
-
-      setBusy(true);
+      if (!OpenWearablesHealthSDK.getSyncStatus().hasResumableSession) return;
       try {
-        if (status.hasResumableSession) {
-          const resumed = await OpenWearablesHealthSDK.resumeSync();
-          if (!resumed) throw new Error("no session");
-        } else {
-          await OpenWearablesHealthSDK.syncNow();
-        }
+        await OpenWearablesHealthSDK.resumeSync();
       } catch {
-        // Resume/restart failed — ignore
+        // Resume failed — the SDK retries on its own schedule
       } finally {
-        await AsyncStorage.removeItem(SYNC_IN_PROGRESS_KEY);
-        setBusy(false);
+        refreshSdkSyncing();
       }
     };
     resumeInterruptedSync();
-  }, []);
+  }, [refreshSdkSyncing]);
 
   const providers = useMemo(
-    () => buildProviders(sdkProviders, apiProviders, connections),
-    [sdkProviders, apiProviders, connections]
+    () =>
+      buildProviders(
+        sdkProviders,
+        apiProviders,
+        connections,
+        sdkSyncingProviderId
+      ),
+    [sdkProviders, apiProviders, connections, sdkSyncingProviderId]
   );
 
   const runNativeConnect = useCallback(
     async (provider: WearableProvider) => {
       if (!provider.isNative || isConnectingRef.current) return;
       isConnectingRef.current = true;
-      setBusy(true);
       try {
         if (Platform.OS === "android") {
           if (!OpenWearablesHealthSDK.setProvider(provider.id)) {
@@ -143,17 +150,17 @@ export function WearablesGroup({
         }
 
         OpenWearablesHealthSDK.resetAnchors();
-        await OpenWearablesHealthSDK.startBackgroundSync(30);
+        await OpenWearablesHealthSDK.startBackgroundSync(1);
         onToast(`${provider.name} connected`);
         await refetch();
       } catch (e: any) {
         Alert.alert("Connect error", e?.message ?? String(e));
       } finally {
         isConnectingRef.current = false;
-        setBusy(false);
+        refreshSdkSyncing();
       }
     },
-    [onToast, refetch]
+    [onToast, refetch, refreshSdkSyncing]
   );
 
   const promptNativeConnect = useCallback((provider: WearableProvider) => {
@@ -233,16 +240,12 @@ export function WearablesGroup({
     const provider = selectedProvider;
     if (provider == null) return;
     setSelectedProvider(null);
-    setBusy(true);
-    await AsyncStorage.setItem(SYNC_IN_PROGRESS_KEY, "true");
     try {
       await OpenWearablesHealthSDK.syncNow();
       onToast("Data synced");
     } catch (e: any) {
       Alert.alert("Sync error", e?.message ?? String(e));
     } finally {
-      await AsyncStorage.removeItem(SYNC_IN_PROGRESS_KEY);
-      setBusy(false);
       await refetch();
     }
   };
@@ -251,11 +254,11 @@ export function WearablesGroup({
     const provider = selectedProvider;
     if (provider == null) return;
     setSelectedProvider(null);
-    setBusy(true);
     try {
-      if (provider.isNative) {
+      // Only stop the SDK when this provider is the one it is syncing —
+      // otherwise we would kill another provider's on-device sync.
+      if (provider.isSdkConnected) {
         await OpenWearablesHealthSDK.stopBackgroundSync();
-        await AsyncStorage.removeItem(SYNC_IN_PROGRESS_KEY);
       }
       if (provider.connectionId != null && userId != null) {
         await disconnectProvider(userId, provider.id);
@@ -264,7 +267,7 @@ export function WearablesGroup({
     } catch (e: any) {
       Alert.alert("Disconnect error", e?.message ?? String(e));
     } finally {
-      setBusy(false);
+      refreshSdkSyncing();
       await refetch();
     }
   };
@@ -326,7 +329,6 @@ export function WearablesGroup({
       {renderContent()}
       <ProviderActionsModal
         provider={selectedProvider}
-        busy={busy}
         onClose={() => setSelectedProvider(null)}
         onSyncNow={handleSyncNow}
         onDisconnect={handleDisconnect}

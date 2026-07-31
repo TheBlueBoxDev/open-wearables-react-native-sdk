@@ -32,7 +32,7 @@ export type AuthorizeResponse = {
   state: string;
 };
 
-const MAX_LOGGED_BODY = 300;
+const MAX_LOGGED_BODY = 10000;
 
 function preview(body: string): string {
   const trimmed = body.trim();

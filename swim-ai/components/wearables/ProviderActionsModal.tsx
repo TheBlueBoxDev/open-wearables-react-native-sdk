@@ -38,10 +38,14 @@ function ActionButton({
         color={disabled ? "#48484A" : color}
       />
       <View style={styles.optionText}>
-        <Text style={[styles.optionTitle, { color: disabled ? "#48484A" : color }]}>
+        <Text
+          style={[styles.optionTitle, { color: disabled ? "#48484A" : color }]}
+        >
           {title}
         </Text>
-        {subtitle != null && <Text style={styles.optionSubtitle}>{subtitle}</Text>}
+        {subtitle != null && (
+          <Text style={styles.optionSubtitle}>{subtitle}</Text>
+        )}
       </View>
     </Pressable>
   );
@@ -49,7 +53,6 @@ function ActionButton({
 
 interface ProviderActionsModalProps {
   provider: WearableProvider | null;
-  busy?: boolean;
   onClose: () => void;
   onSyncNow: () => void;
   onDisconnect: () => void;
@@ -59,7 +62,6 @@ interface ProviderActionsModalProps {
 
 export function ProviderActionsModal({
   provider,
-  busy = false,
   onClose,
   onSyncNow,
   onDisconnect,
@@ -107,13 +109,12 @@ export function ProviderActionsModal({
                     iconName="phone-portrait-outline"
                     title="From this device"
                     subtitle={provider.disabledReason}
-                    disabled={provider.disabledReason != null || busy}
+                    disabled={provider.disabledReason != null}
                     onPress={onNativeConnect}
                   />
                   <ActionButton
                     iconName="cloud-outline"
                     title="From your account"
-                    disabled={busy}
                     onPress={onCloudConnect}
                   />
                 </>
@@ -121,12 +122,11 @@ export function ProviderActionsModal({
 
               {isActive && (
                 <>
-                  {provider.isNative && (
+                  {provider.isSdkConnected && (
                     <>
                       <ActionButton
                         iconName="sync-outline"
                         title="Sync now"
-                        disabled={busy}
                         onPress={onSyncNow}
                       />
                       <Text style={styles.helpText}>
@@ -139,7 +139,6 @@ export function ProviderActionsModal({
                     iconName="unlink-outline"
                     title="Disconnect"
                     color="#FF453A"
-                    disabled={busy}
                     onPress={onDisconnect}
                   />
                 </>

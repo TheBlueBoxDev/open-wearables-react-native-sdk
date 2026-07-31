@@ -15,6 +15,8 @@ export type WearableProvider = {
   connectionId: string | null;
   lastSyncedAt: string | null;
   isNative: boolean;
+  /** Connected through the SDK on this device, as opposed to server-side. */
+  isSdkConnected: boolean;
   isDisabled: boolean;
   hasCloudApi: boolean;
   disabledReason: string | null;
@@ -26,11 +28,16 @@ export type WearableProvider = {
  *
  * Status and last-sync always come from the connections service — it is the
  * real state, including when a provider has been revoked server-side.
+ *
+ * `sdkSyncingProviderId` is a different question: which provider, if any, is
+ * currently syncing through the SDK. It decides which rows are connected *on
+ * this device* rather than server-side.
  */
 export function buildProviders(
   sdkProviders: HealthDataProvider[],
   apiProviders: ProviderSetting[],
-  connections: UserConnection[]
+  connections: UserConnection[],
+  sdkSyncingProviderId: string | null
 ): WearableProvider[] {
   const isIOS = Platform.OS === "ios";
 
@@ -53,13 +60,10 @@ export function buildProviders(
     isIOS ? ["apple"] : sdkProviders.map((p) => p.id)
   );
 
-  // The connected native provider, used for the "disconnect X first" hints
+  // The provider occupying the SDK — only one can sync on-device at a time.
+  // Used for the "disconnect X first" hints.
   const activeNativeProvider: ProviderSetting | null =
-    apiProviders.find(
-      (p) =>
-        nativeProviderIds.has(p.provider) &&
-        connectionMap.get(p.provider)?.status === "active"
-    ) ?? null;
+    apiProviders.find((p) => p.provider === sdkSyncingProviderId) ?? null;
 
   const nativeProviders: WearableProvider[] = apiProviders
     .filter((p) => {
@@ -93,6 +97,7 @@ export function buildProviders(
         connectionId: conn?.id ?? null,
         lastSyncedAt: conn?.last_synced_at ?? null,
         isNative: true,
+        isSdkConnected: sdkSyncingProviderId === p.provider,
         isDisabled,
         hasCloudApi: p.has_cloud_api,
         disabledReason,
@@ -113,6 +118,7 @@ export function buildProviders(
         connectionId: conn?.id ?? null,
         lastSyncedAt: conn?.last_synced_at ?? null,
         isNative: false,
+        isSdkConnected: false,
         isDisabled: false,
         hasCloudApi: true,
         disabledReason: null,
