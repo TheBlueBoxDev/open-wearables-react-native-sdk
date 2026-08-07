@@ -93,7 +93,7 @@ export function WearablesGroup({
     setSdkSyncingProviderId(getSdkSyncingProvider());
   }, []);
 
-  useEffect(refreshSdkSyncing, [refreshSdkSyncing]);
+  useEffect(refreshSdkSyncing, [refreshSdkSyncing, userId]);
 
   // Resume a sync that was interrupted while the app was closed
   useEffect(() => {
@@ -150,7 +150,7 @@ export function WearablesGroup({
         }
 
         OpenWearablesHealthSDK.resetAnchors();
-        await OpenWearablesHealthSDK.startBackgroundSync(1);
+        await OpenWearablesHealthSDK.startBackgroundSync(30);
         onToast(`${provider.name} connected`);
         await refetch();
       } catch (e: any) {

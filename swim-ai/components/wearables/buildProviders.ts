@@ -15,7 +15,6 @@ export type WearableProvider = {
   connectionId: string | null;
   lastSyncedAt: string | null;
   isNative: boolean;
-  /** Connected through the SDK on this device, as opposed to server-side. */
   isSdkConnected: boolean;
   isDisabled: boolean;
   hasCloudApi: boolean;
@@ -26,8 +25,10 @@ export type WearableProvider = {
  * Merges what the SDK offers on this device with what the server knows about
  * the user, producing a single list where each provider carries its own status.
  *
- * Status and last-sync always come from the connections service — it is the
- * real state, including when a provider has been revoked server-side.
+ * Status comes from the connections service, *unless* the SDK is syncing that
+ * provider on this device — then the device wins, because the server only
+ * learns about an on-device provider once a batch has been processed.
+ * `lastSyncedAt` always comes from the server.
  *
  * `sdkSyncingProviderId` is a different question: which provider, if any, is
  * currently syncing through the SDK. It decides which rows are connected *on
@@ -45,7 +46,10 @@ export function buildProviders(
   const connectionMap = new Map<string, UserConnection>();
   for (const conn of connections) {
     const existing = connectionMap.get(conn.provider);
-    if (!existing || (conn.status === "active" && existing.status !== "active")) {
+    if (
+      !existing ||
+      (conn.status === "active" && existing.status !== "active")
+    ) {
       connectionMap.set(conn.provider, conn);
     }
   }
@@ -68,11 +72,15 @@ export function buildProviders(
   const nativeProviders: WearableProvider[] = apiProviders
     .filter((p) => {
       if (!nativeProviderIds.has(p.provider) || !p.is_enabled) return false;
-      return isIOS ? true : sdkProviderMap.get(p.provider)?.isAvailable ?? false;
+      return isIOS
+        ? true
+        : (sdkProviderMap.get(p.provider)?.isAvailable ?? false);
     })
     .map((p) => {
       const conn = connectionMap.get(p.provider);
-      const status: ConnectionStatus = conn?.status ?? "not-connected";
+      const serverStatus: ConnectionStatus = conn?.status ?? "not-connected";
+      const isSdkConnected = sdkSyncingProviderId === p.provider;
+      const status: ConnectionStatus = isSdkConnected ? "active" : serverStatus;
       const anotherNativeActive =
         activeNativeProvider != null &&
         activeNativeProvider.provider !== p.provider &&
@@ -97,7 +105,7 @@ export function buildProviders(
         connectionId: conn?.id ?? null,
         lastSyncedAt: conn?.last_synced_at ?? null,
         isNative: true,
-        isSdkConnected: sdkSyncingProviderId === p.provider,
+        isSdkConnected,
         isDisabled,
         hasCloudApi: p.has_cloud_api,
         disabledReason,
@@ -107,7 +115,9 @@ export function buildProviders(
   const nativeIds = new Set(nativeProviders.map((p) => p.id));
 
   const cloudProviders: WearableProvider[] = apiProviders
-    .filter((p) => p.has_cloud_api && p.is_enabled && !nativeIds.has(p.provider))
+    .filter(
+      (p) => p.has_cloud_api && p.is_enabled && !nativeIds.has(p.provider)
+    )
     .map((p) => {
       const conn = connectionMap.get(p.provider);
       return {
